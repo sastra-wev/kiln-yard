@@ -271,6 +271,32 @@ export function buildWorld(scene, mats) {
     scene.add(b);
     COLLIDERS.push({ minX: x - 0.34, maxX: x + 0.34, minZ: z - 0.34, maxZ: z + 0.34, minY: 0, maxY: 0.95 });
   }
+  // The town beyond the walls: dark foundry silhouettes against the dusk, so the yard sits in a
+  // place instead of a void. Pure backdrop — outside the perimeter, no colliders.
+  const skylineGeo = new THREE.BoxGeometry(1, 1, 1);
+  for (const [x, z, w, h, d] of [[-46, -38, 16, 15, 10], [-18, -42, 10, 10, 8], [8, -40, 14, 18, 10], [38, -36, 12, 12, 9], [-48, 6, 10, 9, 14], [48, 2, 10, 13, 12], [-40, 34, 14, 8, 9], [24, 38, 16, 11, 10], [46, 30, 9, 8, 9]]) {
+    const m = new THREE.Mesh(skylineGeo, mats.dark);
+    m.position.set(x, h / 2, z);
+    m.scale.set(w, h, d);
+    scene.add(m);
+  }
+  // Yard lamps: a pole, a warm head that reads at dusk, and real light at the two sites and mid.
+  const lampPoleGeo = new THREE.CylinderGeometry(0.07, 0.09, 4.3, 8);
+  const lampHeadMat = new THREE.MeshBasicMaterial({ color: 0xffc37a });
+  for (const [x, z, withLight] of [[-14, -5.5, false], [14, -5.5, false], [0, 10.5, true], [-27.5, -19, true], [27.5, -19, true], [-6, 20, false], [6, 20, false]]) {
+    const pole = new THREE.Mesh(lampPoleGeo, mats.steel);
+    pole.position.set(x, 2.15, z);
+    pole.castShadow = true;
+    scene.add(pole);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.42), lampHeadMat);
+    head.position.set(x, 4.35, z);
+    scene.add(head);
+    if (withLight) {
+      const light = new THREE.PointLight(0xffb36b, 30, 17, 1.7);
+      light.position.set(x, 4.2, z);
+      scene.add(light);
+    }
+  }
   // Site markings: a painted ring and letter on the ground of each site.
   for (const site of SITES) {
     const ring = new THREE.Mesh(

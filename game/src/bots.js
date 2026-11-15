@@ -205,7 +205,16 @@ export class BotMind {
 
   moveToward(dt, target, game, cautious) {
     const c = this.c;
-    const dx = target.x - c.pos.x, dz = target.z - c.pos.z;
+    // Separation: aim a little off any teammate crowding the same ground, so a squad moving
+    // down a lane spreads across it instead of stacking into one silhouette.
+    let tx = target.x, tz = target.z;
+    for (const other of game.characters) {
+      if (other === c || !other.alive || other.team !== c.team) continue;
+      const sx = c.pos.x - other.pos.x, sz = c.pos.z - other.pos.z;
+      const sd = Math.hypot(sx, sz);
+      if (sd > 0.01 && sd < 1.2) { tx += (sx / sd) * (1.2 - sd); tz += (sz / sd) * (1.2 - sd); }
+    }
+    const dx = tx - c.pos.x, dz = tz - c.pos.z;
     const dist = Math.hypot(dx, dz);
     const wantYaw = Math.atan2(-dx, -dz);
     c.yaw += Math.max(-TURN_RATE * dt, Math.min(TURN_RATE * dt, angDiff(wantYaw, c.yaw)));
