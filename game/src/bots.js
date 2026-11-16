@@ -2,8 +2,10 @@
 // move, shoot — through the same Character physics and the same gunplay model, so a bot that
 // fires on the move sprays just like a player would. Perception is a vision cone plus line of
 // sight plus hearing: gunfire is a noise event on the game, and a bot that hears a shot turns
-// toward it. Plans come from game.js each round (push a site, hold a site, retake); inside a
-// plan the bot picks its own next node on the map's waypoint graph.
+// toward it. Plans come from game.js each round (push a site, hold a site, retake together);
+// inside a plan the bot picks its own next node on the map's waypoint graph. After a plant the
+// defenders stage at the rally node outside the planted site and push the charge as a squad,
+// and the attackers converge on the charge the moment a defuse starts.
 
 import { NODES, nearestNode, nextHop } from './map.js';
 
@@ -37,6 +39,8 @@ export class BotMind {
     this.scanYaw = character.yaw;
     this.scanT = 0;
     this.threwSmoke = false;
+    this.rallyAt = 0; // game time this bot reached its retake rally node
+    this.rallyPushed = false; // the staged squad has pushed to the charge together
   }
 
   setPlan(plan) {
@@ -46,6 +50,8 @@ export class BotMind {
     this.lastSeen = null;
     this.visible = null;
     this.threwSmoke = false;
+    this.rallyAt = 0;
+    this.rallyPushed = false;
   }
 
   step(dt, game, canAct) {
@@ -184,20 +190,71 @@ export class BotMind {
   }
 
   doHoldSite(dt, game) {
-    // Attackers after the plant: stay near the charge, watch the doors.
+    // Attackers after the plant: stay near the charge, watch the doors — but a defuse in
+    // progress is the emergency: converge on the charge and stop whoever is on it.
     const c = this.c;
     const bomb = game.bomb;
+    let defusing = false;
+    for (const e of game.characters) {
+      if (e.team === c.team || !e.alive) continue;
+      if (Math.hypot(e.pos.x - bomb.pos.x, e.pos.z - bomb.pos.z) < 1.6) { defusing = true; break; }
+    }
+    if (defusing) {
+      const d = Math.hypot(bomb.pos.x - c.pos.x, bomb.pos.z - c.pos.z);
+      if (d > 2.5) { this.moveToward(dt, bomb.pos, game, true); return; }
+    }
     const d = Math.hypot(bomb.pos.x - c.pos.x, bomb.pos.z - c.pos.z);
     if (d > 9) { this.moveToward(dt, bomb.pos, game, false); return; }
     this.doHold(dt, game);
   }
 
   doRetake(dt, game) {
-    // Defenders after the plant: get to the charge; the nearest one defuses.
+    // Defenders after the plant: stage at the rally node outside the planted site and push
+    // the charge together, instead of trickling in one by one to be picked off. A bot
+    // already close to the charge skips the rally and goes straight in; a bot that has
+    // staged waits for a teammate, or 2.5 s, before the squad pushes as one.
     const c = this.c;
     const bomb = game.bomb;
-    const d = Math.hypot(bomb.pos.x - c.pos.x, bomb.pos.z - c.pos.z);
-    if (d > 1.4) { this.moveToward(dt, bomb.pos, game, true); return; }
+    const siteId = bomb.site ? bomb.site.id : (bomb.pos.x < 0 ? 'A' : 'B');
+    const rallyId = siteId === 'B' ? 'b_rally' : 'a_rally';
+    const siteNode = siteId === 'B' ? 'b_site' : 'a_site';
+    const [rx, rz] = NODES[rallyId];
+    const dBomb = Math.hypot(bomb.pos.x - c.pos.x, bomb.pos.z - c.pos.z);
+    if (dBomb < 9) this.rallyPushed = true;
+    if (!this.rallyPushed) {
+      // Walk the graph to the rally node.
+      const here = nearestNode(c.pos.x, c.pos.z);
+      const hop = here === rallyId ? rallyId : nextHop(here, rallyId);
+      const [hx, hz] = NODES[hop];
+      if (hop !== rallyId || Math.hypot(hx - c.pos.x, hz - c.pos.z) > 1.6) {
+        this.moveToward(dt, { x: hx, z: hz }, game, false);
+        return;
+      }
+      // Staged: crouch, watch the charge, and wait for a teammate — or 2.5 s, then go alone.
+      if (!this.rallyAt) this.rallyAt = game.time;
+      let staged = 1; // this bot
+      for (const [other, otherMind] of game.minds) {
+        if (other === c || other.team !== c.team || !other.alive) continue;
+        if (otherMind.state !== 'retake') continue;
+        if (Math.hypot(other.pos.x - rx, other.pos.z - rz) < 3.5) staged++;
+      }
+      if (staged < 2 && game.time - this.rallyAt < 2.5) {
+        c.crouching = true;
+        c.yaw += Math.max(-1.1 * dt, Math.min(1.1 * dt, angDiff(yawToward(c.pos, bomb.pos), c.yaw)));
+        c.move(dt, { x: 0, z: 0 }, 0, false);
+        return;
+      }
+      this.rallyPushed = true;
+    }
+    // Push: graph-hop to the site node, then straight to the charge.
+    const here = nearestNode(c.pos.x, c.pos.z);
+    const hop = here === siteNode ? siteNode : nextHop(here, siteNode);
+    if (hop !== siteNode) {
+      const [hx, hz] = NODES[hop];
+      this.moveToward(dt, { x: hx, z: hz }, game, false);
+      return;
+    }
+    if (dBomb > 1.4) { this.moveToward(dt, bomb.pos, game, true); return; }
     c.move(dt, { x: 0, z: 0 }, 0, false);
     c.yaw = yawToward(c.pos, bomb.pos);
     game.botDefuse(this, dt);

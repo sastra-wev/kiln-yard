@@ -41,6 +41,10 @@ const SOLIDS = [
   { cx: 0, cz: 6.5, w: 6, d: 3, h: 2.4, mat: 'wood' },
   { cx: -8, cz: -9, w: 4, d: 3, h: 2.2, mat: 'brickDark' },
   { cx: 8, cz: -9, w: 4, d: 3, h: 2.2, mat: 'brickDark' },
+  // Kiln carts (1.0 m: crouch-height steel carts that break the long mid sightline, so
+  // crossing mid is a hop between cover instead of a 40 m sprint in the open)
+  { cx: -5, cz: 1.5, w: 2.4, d: 1.6, h: 1.0, mat: 'steel' },
+  { cx: 5, cz: 1.5, w: 2.4, d: 1.6, h: 1.0, mat: 'steel' },
   // South yard (attackers): foundry office and stores break up the spawn ground
   { cx: -12, cz: 17, w: 8, d: 4, h: 3.6, mat: 'plaster' },
   { cx: 12, cz: 17, w: 8, d: 4, h: 3.6, mat: 'plaster' },
@@ -81,6 +85,9 @@ export const NODES = {
   a_door: [-12.6, -13], a_site: [-21, -13], a_hold1: [-17.5, -17.5], a_hold2: [-25.5, -9.5],
   b_door: [12.6, -13], b_site: [21, -13], b_hold1: [17.5, -17.5], b_hold2: [24.5, -9.5],
   d_gate: [0, -15.5], d_west: [-7, -19], d_east: [7, -19],
+  // Retake rally nodes: just outside each site door, where defenders stage together
+  // after a plant before pushing the charge as a squad instead of one by one.
+  a_rally: [-9.5, -5.5], b_rally: [9.5, -5.5],
 };
 const EDGES = [
   ['s_gate', 's_west'], ['s_gate', 's_east'], ['s_gate', 'mid_s'],
@@ -93,6 +100,8 @@ const EDGES = [
   ['mid_n', 'd_gate'], ['d_gate', 'd_west'], ['d_gate', 'd_east'],
   ['d_west', 'a_hold1'], ['d_east', 'b_hold1'], ['a_hold1', 'a_site'], ['b_hold1', 'b_site'],
   ['a_site', 'a_hold2'], ['b_site', 'b_hold2'], ['w_door', 'a_hold2'], ['e_door', 'b_hold2'],
+  ['a_rally', 'cross_w'], ['a_rally', 'a_door'], ['a_rally', 'mid_n'],
+  ['b_rally', 'cross_e'], ['b_rally', 'b_door'], ['b_rally', 'mid_n'],
 ];
 export const GRAPH = (() => {
   const g = new Map(Object.keys(NODES).map((k) => [k, []]));
